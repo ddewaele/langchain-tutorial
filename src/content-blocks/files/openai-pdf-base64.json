@@ -1,0 +1,18 @@
+{
+  "model" : "gpt-4o-mini",
+  "temperature" : 0,
+  "stream" : false,
+  "messages" : [ {
+    "role" : "user",
+    "content" : [ {
+      "type" : "text",
+      "text" : "Describe the content of this document."
+    }, {
+      "type" : "file",
+      "file" : {
+        "file_data" : "data:application/pdf;base64,JVBERi0xLjQKJc...U9GCg==",
+        "filename" : "file.pdf"
+      }
+    } ]
+  } ]
+}

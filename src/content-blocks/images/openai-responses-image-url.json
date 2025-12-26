@@ -1,0 +1,18 @@
+{
+  "input" : [ {
+    "type" : "message",
+    "role" : "user",
+    "content" : [ {
+      "type" : "input_text",
+      "text" : "Describe the  image you are seeing."
+    }, {
+      "type" : "input_image",
+      "detail" : "auto",
+      "image_url" : "https://images.all-free-download.com/images/graphiclarge/laptop_183544.jpg"
+    } ]
+  } ],
+  "model" : "gpt-4o-mini",
+  "temperature" : 0,
+  "stream" : false,
+  "text" : { }
+}
