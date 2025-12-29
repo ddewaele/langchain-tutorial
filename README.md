@@ -44,8 +44,13 @@ In WebStorm you can setup the run configuration to use this file before launchin
 - State Management
   - Custom State
 - Middleware
-  - Post model hooks
-  - Pre model hooks
+  - Hooks
+    - Post model hooks
+    - Pre model hooks
+  - Built-in Middleware
+  - Custom Middleware
+  - Middleware Custom State
+  - 
 - Agents
   - Simple Agent
   - Streaming

@@ -55,8 +55,16 @@ import {showMenu} from "../menu-runner/menu";
  * }
  *
  */
-export async function invokeOpenAIModel() {
+export async function invokeOpenAIModelCompletionsApi() {
     const model = await initChatModel("gpt-4.1");
+    const response = await model.invoke("Hello");
+    console.log(response);
+}
+
+export async function invokeOpenAIModelResponsesApi() {
+    const model = await initChatModel("gpt-4.1", {
+        use_chat_completion_api: false,
+    });
     const response = await model.invoke("Hello");
     console.log(response);
 }

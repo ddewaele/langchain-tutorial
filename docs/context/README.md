@@ -34,3 +34,17 @@ the second argument to the `invoke` function is the optional runtime configurati
 - store : The store for the agent execution for persisting state, see more in {@link https://docs.langchain.com/oss/javascript/langgraph/memory#memory-storage | Memory storage}.
 - signal : An optional {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} for the agent execution.
 - recursionLimit : The recursion limit for the agent execution.
+
+The context is available in
+
+- Tools
+- Middleware
+
+
+Tool runtime available in tools
+
+![img_2.png](img_2.png)
+
+Agent runtime available in middleware
+
+![img_1.png](img_1.png)

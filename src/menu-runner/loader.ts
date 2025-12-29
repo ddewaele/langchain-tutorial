@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 
-dotenv.config({ path: [".env", "./../.env"] });
+dotenv.config({ path: [".env", "./../.env", "./../../.env"] });
 
 export interface CliAction {
     name: string;

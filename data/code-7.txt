@@ -1,0 +1,63 @@
+Manual QA scenarios for updateUserProfile
+
+Setup
+
+- Ensure a test environment with the function wired to a test database and a stubbed mailer.
+- Create two user accounts in the DB:
+  - admin: { id: 'admin', email: 'admin@example.com', role: 'admin' }
+  - alice: { id: 'alice', email: 'alice@old.com', role: 'user' }
+
+Scenarios
+
+1. Missing fields
+   - Request: { userId: '', actorId: '' }
+   - Expect: Response { ok: false, error: 'missing_fields' }.
+
+2. Actor not found
+   - Request: { userId: 'alice', actorId: 'missing' }
+   - Expect: { ok: false, error: 'unauthorized' }.
+
+3. Target not found
+   - Request: { userId: 'missing', actorId: 'admin' }
+   - Expect: { ok: false, error: 'not_found' }.
+
+4. Forbidden update (non-admin editing another user)
+   - Setup: user bob { id: 'bob', email: 'bob@old.com', role: 'user' }
+   - Request: actorId='bob', userId='alice', newEmail='x@old.com'
+   - Expect: { ok: false, error: 'forbidden' } and no DB change.
+
+5. Invalid email
+   - Request: actorId='alice', userId='alice', newEmail='bad'
+   - Expect: { ok: false, error: 'invalid_email' } and no DB change.
+
+6. Domain change by non-admin
+   - Request: actorId='alice', userId='alice', newEmail='alice@new.com'
+   - Expect: { ok: false, error: 'domain_change_requires_admin' } and no DB change.
+
+7. Successful email change by self (same domain)
+   - Request: actorId='alice', userId='alice', newEmail='alice+1@old.com'
+   - Expect: { ok: true } and DB email updated to 'alice+1@old.com'.
+
+8. Successful role change by admin
+   - Request: actorId='admin', userId='alice', makeAdmin=true
+   - Expect: { ok: true } and DB role changed to 'admin'.
+
+9. Welcome email after update
+   - Request: actorId='alice', userId='alice', newEmail='alice+2@old.com', sendWelcome=true
+   - Expect: { ok: true }, DB updated, and mailer received send(to='alice+2@old.com').
+
+10. Email send failure
+    - Configure mailer to fail (simulate SMTP down)
+    - Request: actorId='alice', userId='alice', newEmail='alice+3@old.com', sendWelcome=true
+    - Expect: { ok: false, error: 'email_failed' } and DB should reflect the update or not based on the chosen system semantics — currently DB update occurs before sending email, so DB will be updated but the response indicates email failure.
+
+11. DB update failure
+    - Configure DB updateUser to throw for a particular user.
+    - Request: actorId='admin', userId='alice', makeAdmin=false
+    - Expect: { ok: false, error: 'db_error' } and DB remains unchanged.
+
+Testing notes
+
+- Verify logs are emitted for warning/error cases.
+- For scenario 10, the chosen semantics are that DB update occurs first; adjust test expectations if your environment needs all-or-nothing.
+- Use test doubles (stubs/mocks) for mailer and DB to simulate failures deterministically.

@@ -1,0 +1,115 @@
+// Refactored implementation (refinement of code-2)
+
+type User = { id: string; email: string; role?: "admin" | "user" };
+
+type Db = {
+  getUserById(id: string): Promise<User | null>;
+  updateUser(id: string, patch: Partial<User>): Promise<void>;
+};
+
+type Mailer = { send(to: string, subject: string, body: string): Promise<void> };
+
+type Logger = { info(msg: string, extra?: any): void; warn(msg: string, extra?: any): void; error(msg: string, extra?: any): void };
+
+type UpdateRequest = { userId: string; actorId: string; newEmail?: string; makeAdmin?: boolean; sendWelcome?: boolean };
+
+type Ok = { ok: true };
+type Err = { ok: false; error: string };
+
+function validateRequest(req: UpdateRequest): Err | Ok {
+  if (!req.userId || !req.actorId) return { ok: false, error: "missing fields" };
+  return { ok: true };
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function validateEmailFormat(email: string): Err | { ok: true; email: string } {
+  const e = normalizeEmail(email);
+  if (!e.includes("@") || e.length < 6) return { ok: false, error: "invalid email" };
+  return { ok: true, email: e };
+}
+
+function getDomain(email: string): string {
+  return email.split("@")[1] ?? "";
+}
+
+export async function updateUserProfile(req: UpdateRequest, deps: { db: Db; mailer: Mailer; logger: Logger }): Promise<Ok | Err> {
+  const { db, mailer, logger } = deps;
+
+  const vr = validateRequest(req);
+  if (!vr.ok) {
+    logger.warn("missing fields", { req });
+    return vr;
+  }
+
+  const actor = await db.getUserById(req.actorId);
+  if (!actor) {
+    logger.warn("actor not found", { actorId: req.actorId });
+    return { ok: false, error: "unauthorized" };
+  }
+
+  const target = await db.getUserById(req.userId);
+  if (!target) {
+    logger.warn("target not found", { userId: req.userId });
+    return { ok: false, error: "not found" };
+  }
+
+  const actorIsAdmin = actor.role === "admin";
+  const selfEdit = actor.id === target.id;
+
+  if (!actorIsAdmin && !selfEdit) {
+    logger.warn("forbidden update attempt", { actorId: actor.id, targetId: target.id });
+    return { ok: false, error: "forbidden" };
+  }
+
+  const patch: Partial<User> = {};
+
+  if (req.newEmail) {
+    const ve = validateEmailFormat(req.newEmail);
+    if (!ve.ok) {
+      logger.warn("invalid email", { email: req.newEmail, actorId: actor.id });
+      return ve;
+    }
+    const newEmail = ve.email;
+    const oldDomain = getDomain(target.email);
+    const newDomain = getDomain(newEmail);
+    if (oldDomain !== newDomain && !actorIsAdmin) {
+      logger.warn("domain change blocked", { actorId: actor.id, oldDomain, newDomain });
+      return { ok: false, error: "domain change requires admin" };
+    }
+    patch.email = newEmail;
+  }
+
+  if (req.makeAdmin !== undefined) {
+    if (!actorIsAdmin) {
+      logger.warn("non-admin tried to change role", { actorId: actor.id });
+      return { ok: false, error: "forbidden" };
+    }
+    patch.role = req.makeAdmin ? "admin" : "user";
+  }
+
+  if (Object.keys(patch).length > 0) {
+    try {
+      await db.updateUser(target.id, patch);
+      logger.info("user updated", { targetId: target.id, patch });
+    } catch (e: any) {
+      logger.error("db update failed", { e, targetId: target.id });
+      return { ok: false, error: "db error" };
+    }
+  }
+
+  if (req.sendWelcome) {
+    const to = normalizeEmail(req.newEmail ?? target.email);
+    try {
+      await mailer.send(to, "Welcome!", `Hi! Your profile was updated.`);
+      logger.info("welcome email sent", { targetId: target.id });
+    } catch (e: any) {
+      logger.error("welcome email failed", { e, targetId: target.id });
+      return { ok: false, error: "email failed" };
+    }
+  }
+
+  return { ok: true };
+}

@@ -1,12 +1,14 @@
 import * as z from "zod"
 import {ChatOpenAI} from "@langchain/openai"
-import {createAgent, tool} from "langchain"
+import {createAgent, createMiddleware, tool, type ToolRuntime} from "langchain"
 import {loadActions} from "../menu-runner/loader";
 import {showMenu} from "../menu-runner/menu";
 
 const getUserName = tool(
-    (_, config) => {
-        return config.context.user_name
+    (_, runtime: ToolRuntime) => {
+        const currentState = runtime.state as z.infer<typeof UserState>;
+        console.log("Found username = ",currentState.userName)
+        return currentState.userName
     },
     {
         name: "get_user_name",
@@ -15,10 +17,14 @@ const getUserName = tool(
     }
 );
 
-const contextSchema = z.object({
-    user_name: z.string(),
+const UserState = z.object({
+    userName: z.string(),
 });
 
+const userState = createMiddleware({
+    name: "UserState",
+    stateSchema: UserState,
+});
 
 
 export async function runAgentWithToolConfig() {
@@ -26,15 +32,13 @@ export async function runAgentWithToolConfig() {
     const agent = createAgent({
         model: new ChatOpenAI({ model: "gpt-4o" }),
         tools: [getUserName],
-        contextSchema,
+        middleware: [userState],
     });
 
     const result = await agent.invoke(
         {
-            messages: [{ role: "user", content: "What is my name?" }]
-        },
-        {
-            context: { user_name: "John Smith" }
+            messages: [{ role: "user", content: "What is my name?" }],
+            userName: "John Smith",
         }
     );
 

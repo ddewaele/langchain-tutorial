@@ -1,0 +1,107 @@
+// Jest-style tests (TypeScript pseudo-code)
+
+import { updateUserProfile } from './code-3';
+
+function makeMocks() {
+  const users: Record<string, any> = {
+    'u_actor_admin': { id: 'u_actor_admin', email: 'admin@example.com', role: 'admin' },
+    'u_actor_user': { id: 'u_actor_user', email: 'user@example.com', role: 'user' },
+    'u_target': { id: 'u_target', email: 'target@old.com', role: 'user' },
+  };
+
+  const db = {
+    getUserById: jest.fn(async (id: string) => users[id] ?? null),
+    updateUser: jest.fn(async (id: string, patch: any) => { // apply patch
+      if (id === 'db_error') throw new Error('db fail');
+      users[id] = { ...users[id], ...patch };
+    }),
+  };
+
+  const mailer = { send: jest.fn(async (to: string) => { if (to === 'fail@example.com') throw new Error('mail fail'); }) };
+
+  const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+
+  return { db, mailer, logger, users };
+}
+
+describe('updateUserProfile', () => {
+  test('missing fields', async () => {
+    const { db, mailer, logger } = makeMocks();
+    const res = await updateUserProfile({ userId: '', actorId: '' }, { db, mailer, logger });
+    expect(res).toEqual({ ok: false, error: 'missing fields' });
+  });
+
+  test('actor not found', async () => {
+    const { db, mailer, logger } = makeMocks();
+    const res = await updateUserProfile({ userId: 'u_target', actorId: 'nope' }, { db, mailer, logger });
+    expect(res).toEqual({ ok: false, error: 'unauthorized' });
+  });
+
+  test('target not found', async () => {
+    const { db, mailer, logger } = makeMocks();
+    const res = await updateUserProfile({ userId: 'nope', actorId: 'u_actor_admin' }, { db, mailer, logger });
+    expect(res).toEqual({ ok: false, error: 'not found' });
+  });
+
+  test('forbidden update by non-admin', async () => {
+    const { db, mailer, logger } = makeMocks();
+    const res = await updateUserProfile({ userId: 'u_target', actorId: 'u_actor_user', newEmail: 'x@y.com' }, { db, mailer, logger });
+    expect(res).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  test('invalid email', async () => {
+    const { db, mailer, logger } = makeMocks();
+    const res = await updateUserProfile({ userId: 'u_target', actorId: 'u_actor_admin', newEmail: 'bad' }, { db, mailer, logger });
+    expect(res).toEqual({ ok: false, error: 'invalid email' });
+  });
+
+  test('domain change blocked for non-admin', async () => {
+    const { db, mailer, logger } = makeMocks();
+    // actor is target himself => allowed; instead try non-admin editing another
+    const res = await updateUserProfile({ userId: 'u_target', actorId: 'u_actor_user', newEmail: 'new@new.com' }, { db, mailer, logger });
+    expect(res).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  test('successful email update by admin', async () => {
+    const { db, mailer, logger, users } = makeMocks();
+    const res = await updateUserProfile({ userId: 'u_target', actorId: 'u_actor_admin', newEmail: 'updated@new.com' }, { db, mailer, logger });
+    expect(res).toEqual({ ok: true });
+    expect(db.updateUser).toHaveBeenCalledWith('u_target', { email: 'updated@new.com' });
+    expect(users['u_target'].email).toBe('updated@new.com');
+  });
+
+  test('role change forbidden for non-admin', async () => {
+    const { db, mailer, logger } = makeMocks();
+    const res = await updateUserProfile({ userId: 'u_target', actorId: 'u_actor_user', makeAdmin: true }, { db, mailer, logger });
+    expect(res).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  test('role change by admin', async () => {
+    const { db, mailer, logger, users } = makeMocks();
+    const res = await updateUserProfile({ userId: 'u_target', actorId: 'u_actor_admin', makeAdmin: true }, { db, mailer, logger });
+    expect(res).toEqual({ ok: true });
+    expect(db.updateUser).toHaveBeenCalledWith('u_target', { role: 'admin' });
+    expect(users['u_target'].role).toBe('admin');
+  });
+
+  test('db.updateUser throws error', async () => {
+    const { db, mailer, logger, users } = makeMocks();
+    users['db_error'] = { id: 'db_error', email: 'x@x.com', role: 'user' };
+    const res = await updateUserProfile({ userId: 'db_error', actorId: 'u_actor_admin', makeAdmin: true }, { db, mailer, logger });
+    expect(res).toEqual({ ok: false, error: 'db error' });
+  });
+
+  test('welcome email sent', async () => {
+    const { db, mailer, logger } = makeMocks();
+    const res = await updateUserProfile({ userId: 'u_target', actorId: 'u_actor_admin', sendWelcome: true }, { db, mailer, logger });
+    expect(res).toEqual({ ok: true });
+    expect(mailer.send).toHaveBeenCalled();
+  });
+
+  test('welcome email fails', async () => {
+    const { db, mailer, logger, users } = makeMocks();
+    users['u_target'].email = 'fail@example.com';
+    const res = await updateUserProfile({ userId: 'u_target', actorId: 'u_actor_admin', sendWelcome: true }, { db, mailer, logger });
+    expect(res).toEqual({ ok: false, error: 'email failed' });
+  });
+});

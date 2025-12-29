@@ -1,3 +1,11 @@
+/**
+ * Example demonstrating how to use LangChain to create an agent that can be invoked and streamed.
+ * Explores 2 streaming modes:
+ *
+ * - Using messages mode
+ * - Using updates mode
+ *
+ */
 import {HumanMessage} from "@langchain/core/messages";
 import {ChatOpenAI} from "@langchain/openai";
 import {createAgent, tool} from "langchain";
@@ -15,7 +23,12 @@ const agent = createAgent({
     systemPrompt: "You are a helpfull assistant",
 });
 
-export async function invokeAgent() {
+export async function invokeAgentWithInlineModel() {
+
+    const agent = createAgent({
+        model : "gpt-4o-mini",
+        systemPrompt: "You are a helpfull assistant",
+    });
 
     const res = await agent.invoke({
         messages: [
@@ -28,6 +41,23 @@ export async function invokeAgent() {
     });
 
     // get the last message from the response from the agent
+    const lastMessage = res.messages[res.messages.length - 1];
+    console.log(lastMessage.content);
+}
+
+
+export async function invokeAgent() {
+
+    const res = await agent.invoke({
+        messages: [
+            new HumanMessage({
+                content: [
+                    {type: 'text', text: '"Hello World"',},
+                ],
+            }),
+        ]
+    });
+
     const lastMessage = res.messages[res.messages.length - 1];
     console.log(lastMessage.content);
 
@@ -48,7 +78,7 @@ export async function streamAgentWithUsingMessagesMode() {
     );
 
     for await (const chunk of stream) {
-        const [msg, metadata] = chunk;
+        const [msg] = chunk;
         process.stdout.write(msg.content || "");
     }
 }

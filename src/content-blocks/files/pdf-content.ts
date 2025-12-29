@@ -9,7 +9,7 @@ import {showMenu} from "../../menu-runner/menu";
 const model = new ChatOpenAI({model:"gpt-4o-mini", temperature: 0, useResponsesApi: false
 });
 
-const filename = "sample.pdf";
+const filename = "../data/sample.pdf";
 const pdfData = fs.readFileSync(filename);
 const base64String = pdfData.toString("base64");
 const dataUrl = `data:application/pdf;base64,${base64String}`;

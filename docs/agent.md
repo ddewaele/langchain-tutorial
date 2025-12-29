@@ -216,12 +216,12 @@ For the code example above we will get the following 3 updates :
 
 Update #1 
 
-![img.png](chunk_update1_modelrequest.png)
+![img.png](./images/chunk_update1_modelrequest.png)
 
 Update #2
 
-![img_1.png](chunk_update2_tools.png)
+![img_1.png](./images/chunk_update2_tools.png)
 
 Update #3
 
-![img_2.png](chunk_update3_modelrequest.png)
+![img_2.png](./images/chunk_update3_modelrequest.png)

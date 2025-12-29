@@ -1,17 +1,25 @@
+/**
+ *
+ * In this example I'm going to show you how to create a simple counter agent.
+ * The agent is responsible for taking in a number and incrementing that to an existing counter (stored in state)
+ *
+ */
 import {z} from "zod";
-import {Annotation, Command, MessagesAnnotation} from "@langchain/langgraph";
+import {Command} from "@langchain/langgraph";
 import {ChatOpenAI} from "@langchain/openai";
 import {HumanMessage} from "@langchain/core/messages";
-import {tool} from "@langchain/core/tools";
-import {createAgent, ToolMessage} from "langchain";
+import {tool, type ToolRuntime} from "@langchain/core/tools";
+import {createAgent, createMiddleware, ToolMessage} from "langchain";
 
-// 1. Tool that increments
+
 const incrementTool = tool(
-    async ({ input }, runtime) => {
-        const tool_call_id = runtime.toolCallId;
+    async ({ input }, runtime: ToolRuntime) => {
 
-        const count = runtime.state?.count ?? 0;
+        const currentState = runtime.state as z.infer<typeof customCountStateSchema>;
+
+        const count = currentState.count ?? 0;
         const newCount = count + input;
+
         console.log("TOOL: origCount =", count, "input  =", input , "new =", newCount);
 
         return new Command({
@@ -19,7 +27,7 @@ const incrementTool = tool(
                 count: newCount,
                 messages: [
                     new ToolMessage({
-                        tool_call_id,
+                        tool_call_id: runtime.toolCallId,
                         content: `Incremented to ${newCount}`,
                     }),
                 ],
@@ -36,50 +44,64 @@ const incrementTool = tool(
 );
 
 const customCountStateSchema = z.object({
-    count: Annotation<number>(),
+    // count: Annotation<number>(),
+    count : z.number()
 });
 
-const stateSchema = Annotation.Root({
-    ...MessagesAnnotation.spec,
-    count: Annotation<number>(),
-})
 
+// const CountState = z.object({
+//     ≈
+// });
+//
+const countState = createMiddleware({
+    name: "CountState",
+    stateSchema: customCountStateSchema,
+});
+
+// const stateSchema = Annotation.Root({
+//     ...MessagesAnnotation.spec,
+//     count: Annotation<number>(),
+// })
+
+
+
+const SYSTEM_PROMPT = `
+
+You are a numeric assistant capable of adding numbers.
+You will be given a series of numbers that you need to increment
+
+You will process numbers **one at a time**.
+
+RULES (these are needed to ensure correct state updates by running the tools in sequence and not in parallel) :
+
+- You will do 1 tool call per number encountered
+- You will wait for the increment tool to finish before processing the next number.
+
+
+`
+
+// This prompt does not work
+const SYSTEM_PROMPT_2 = `
+You are a simple numeric assistant.
+
+You will see a series of numbers seperated by a space.
+
+Your job is to execute the following steps in sequence for each number you encounter :
+
+1. execute the increment tool for that particular message
+2. repeat for the next message
+
+Finally, explain the final incremented count.
+`
 
 // 2. Agent
 export const agent = createAgent({
     model: new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0 }),
 
-    stateSchema: customCountStateSchema,
-
+    middleware: [countState],
     tools: [incrementTool],
-    systemPrompt: `
-You are a step-based numeric assistant.
+    systemPrompt: SYSTEM_PROMPT,
 
-You will process numbers **one at a time**.
-
-RULES:
-- If pendingNumbers is empty → produce final answer.
-- Otherwise:
-    1. Take the FIRST number in pendingNumbers.
-    2. Call the increment tool with that number.
-    3. Remove that number from pendingNumbers.
-    4. Continue to process the next number.
-    (This will trigger another agent step.)
-
-- You will do 1 tool call per number encountered
-  `,
-//     systemPrompt: `
-// You are a simple numeric assistant.
-//
-// You will see a series of numbers seperated by a space.
-//
-// Your job is to execute the following steps in sequence for each number you encounter :
-//
-// 1. execute the increment tool for that particular message
-// 2. repeat for the next message
-//
-// Finally, explain the final incremented count.
-// `,
 });
 
 // 3. Call agent with preset human messages
@@ -88,12 +110,14 @@ RULES:
         // These are the preset messages you wanted
         messages: [
             new HumanMessage("Here are the numbers : [4 , 8 , 2]"),
-            // new HumanMessage("4"),
-            // new HumanMessage("8"),
-            // new HumanMessage("2"),
+
+            // Providing individual messages throws an error : InvalidUpdateError: Invalid update for channel "count" with values [14,18,12]: LastValue can only receive one value per step.
+            new HumanMessage("4"),
+            new HumanMessage("8"),
+            new HumanMessage("2"),
         ],
         // Initial state value (could also be omitted)
-        count: 10,
+        count: 0,
     });
 
     console.log("\n=== FINAL OUTPUT ===");

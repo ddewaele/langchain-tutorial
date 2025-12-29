@@ -5,11 +5,11 @@ import * as fs from "fs";
 import {loadActions} from "../../menu-runner/loader";
 import {showMenu} from "../../menu-runner/menu";
 
-const model = new ChatOpenAI({model:"gpt-4o-mini", temperature: 0, useResponsesApi: true});
+const model = new ChatOpenAI({model:"gpt-4o-mini", temperature: 0, useResponsesApi: false});
 
-const filename = "computer.jpg";
-const pdfData = fs.readFileSync(filename);
-const base64String = pdfData.toString("base64");
+const filename = "../data/computer.jpg";
+const imageData = fs.readFileSync(filename);
+const base64String = imageData.toString("base64");
 const base64DataUrl = `data:image/jpeg;base64,${base64String}`;
 const imageUrl = "https://images.all-free-download.com/images/graphiclarge/laptop_183544.jpg";
 

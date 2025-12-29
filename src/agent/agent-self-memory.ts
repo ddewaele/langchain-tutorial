@@ -1,3 +1,9 @@
+/**
+ *
+ * Example demonstrating how  LangChain can remember its own history.
+ * The agent in and of itself without a checkpointer is stateless, but by providing the previous messages in the conversation allows him to retain memory.
+ *
+ */
 import {AIMessage, HumanMessage} from "@langchain/core/messages";
 import {ChatOpenAI} from "@langchain/openai";
 import {createAgent} from "langchain";
@@ -24,7 +30,6 @@ export async function runAgent() {
         ]
     });
 
-    // get the last message from the response from the agent
     const lastMessage = res.messages[res.messages.length - 1];
     console.log(lastMessage.content);
 }

@@ -1,0 +1,78 @@
+Technical documentation for updateUserProfile
+
+Overview
+
+The refactored updateUserProfile function splits the original monolithic logic into multiple focused helper functions to improve testability, readability, and maintainability.
+
+Components
+
+1. validateRequest(req: UpdateRequest) => Result
+   - Purpose: Ensure required fields are present and that provided fields pass basic validation (e.g., email format).
+   - Returns: { ok: true } or { ok: false, error: <code> }
+
+2. fetchUsers(req: UpdateRequest, db: Db) => Promise<Result | { ok: true; actor: User; target: User }>
+   - Purpose: Load actor and target users from db.
+   - Returns unauthorized/not_found error codes if missing.
+
+3. authorize(actor, target) => Result | { ok: true; actorIsAdmin: boolean }
+   - Purpose: Ensure actor has permission to edit target. Non-admins can only edit themselves.
+
+4. buildPatch(target, req, actorIsAdmin) => Result | { ok: true; patch: Partial<User> }
+   - Purpose: Compute changes to apply (email and role). Enforce domain-change rule.
+   - The patch is a Partial<User> containing only fields to update.
+
+5. applyPatch(db, targetId, patch) => Promise<Result>
+   - Purpose: Apply the computed patch using db.updateUser. Error is normalized to db_error.
+   - If patch is empty, returns ok true without calling DB.
+
+6. sendWelcomeEmail(mailer, to) => Promise<Result>
+   - Purpose: Send welcome email. Normalizes failures to email_failed.
+
+7. updateUserProfile(req, deps)
+   - Orchestrates the above functions.
+   - Logs warnings/errors at each failure point.
+   - Ensures side effects (mailer) only run after successful DB update.
+
+Error codes (normalized)
+
+- missing_fields: req.userId or req.actorId missing
+- invalid_email: newEmail missing '@' or too short
+- unauthorized: actor user not found
+- not_found: target user not found
+- forbidden: actor not allowed to update target
+- domain_change_requires_admin: attempted to change domain without admin rights
+- db_error: underlying db.updateUser failed
+- email_failed: mailer.send failed
+
+Design rationale
+
+- Single responsibility: Each helper does one job to make unit testing easier and reduce cognitive load during code review.
+- Single DB update: Reduces partial-update issues. If the data store supports multi-field transactions this approach is atomic; otherwise, behavior depends on db.updateUser.
+- Predictable side effects: Sending of emails happens only after the DB state has been successfully updated.
+- Clear logging: Logging is centralized at the orchestration level to capture context and reasons for failures.
+
+Extensibility
+
+- Additional fields can be supported by extending buildPatch to include more fields (e.g., displayName) and updating the User type.
+- If more complex authorization is needed, replace authorize with a policy service injection.
+- For audit trails, extend applyPatch to write to an audit log (or inject audit service into dependencies).
+
+Testing guidance
+
+- Unit tests should mock db and mailer and assert returned results and side-effects.
+- Integration tests should exercise the function with the real DB and mailer in a controlled environment.
+
+API contract
+
+- The function requires the db dependency to implement getUserById and updateUser. updateUser should throw on failure.
+- mailer.send should return a promise that resolves on success and rejects on failure.
+- logger is used for info/warn/error but its availability is not validated; consider adding runtime checks in strict environments.
+
+Performance considerations
+
+- The function performs two DB reads (getUserById for actor and target) and one optional write. If these are remote calls, consider batching reads or optimizing with a single DB call.
+
+Security considerations
+
+- Ensure that actorId is validated from a trusted source (e.g., authenticated session) and not user-supplied in untrusted requests.
+- Email sanitization: The function normalizes email by trimming and lowercasing; additional validation may be required depending on downstream systems.

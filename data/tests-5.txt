@@ -1,0 +1,124 @@
+// Pseudocode tests for updateUserProfile (based on code-4)
+
+// Minimal assert helpers
+function assert(condition: boolean, msg: string) {
+  if (!condition) throw new Error(msg);
+}
+
+async function runTests() {
+  console.log('Starting tests...');
+
+  // Helpers to create mocks
+  function makeMocks({ actor, target, updateFail=false, mailFail=false } = {}) {
+    const users: Record<string, any> = {};
+    if (actor) users[actor.id] = actor;
+    if (target) users[target.id] = target;
+
+    const db = {
+      getUserById: async (id: string) => users[id] ?? null,
+      updateUser: async (id: string, patch: any) => {
+        if (updateFail) throw new Error('db failure');
+        users[id] = { ...users[id], ...patch };
+      }
+    };
+
+    const mailer = {
+      send: async (to: string) => {
+        if (mailFail) throw new Error('mail failure');
+      }
+    };
+
+    const logger = { info: ()=>{}, warn: ()=>{}, error: ()=>{} };
+
+    return { db, mailer, logger, users };
+  }
+
+  // Test: missing fields
+  {
+    const { db, mailer, logger } = makeMocks();
+    const res = await updateUserProfile({ userId: '', actorId: '' }, { db, mailer, logger });
+    assert(res.ok === false && res.error === 'missing fields', 'missing fields check');
+  }
+
+  // Test: actor not found
+  {
+    const { db, mailer, logger } = makeMocks();
+    const res = await updateUserProfile({ userId: 'u1', actorId: 'a1' }, { db, mailer, logger });
+    assert(res.ok === false && res.error === 'unauthorized', 'actor not found');
+  }
+
+  // Test: target not found
+  {
+    const actor = { id: 'a1', email: 'a@x.com', role: 'admin' };
+    const { db, mailer, logger } = makeMocks({ actor });
+    const res = await updateUserProfile({ userId: 'u1', actorId: 'a1' }, { db, mailer, logger });
+    assert(res.ok === false && res.error === 'not found', 'target not found');
+  }
+
+  // Test: forbidden
+  {
+    const actor = { id: 'a1', email: 'a@x.com', role: 'user' };
+    const target = { id: 'u1', email: 'u@x.com', role: 'user' };
+    const { db, mailer, logger } = makeMocks({ actor, target });
+    const res = await updateUserProfile({ userId: 'u1', actorId: 'a1', newEmail: 'new@x.com' }, { db, mailer, logger });
+    assert(res.ok === false && res.error === 'forbidden', 'forbidden non-admin editing other');
+  }
+
+  // Test: invalid email
+  {
+    const actor = { id: 'a1', email: 'a@x.com', role: 'admin' };
+    const target = { id: 'u1', email: 'u@x.com', role: 'user' };
+    const { db, mailer, logger } = makeMocks({ actor, target });
+    const res = await updateUserProfile({ userId: 'u1', actorId: 'a1', newEmail: 'bad' }, { db, mailer, logger });
+    assert(res.ok === false && res.error === 'invalid email', 'invalid email');
+  }
+
+  // Test: domain change blocked for non-admin
+  {
+    const actor = { id: 'a1', email: 'a@x.com', role: 'user' };
+    const target = { id: 'u1', email: 'u@x.com', role: 'user' };
+    const { db, mailer, logger } = makeMocks({ actor, target });
+    const res = await updateUserProfile({ userId: 'u1', actorId: 'a1', newEmail: 'u@different.com' }, { db, mailer, logger });
+    assert(res.ok === false && res.error === 'forbidden', 'should be forbidden earlier');
+  }
+
+  // Test: email update success
+  {
+    const actor = { id: 'a1', email: 'a@x.com', role: 'admin' };
+    const target = { id: 'u1', email: 'u@x.com', role: 'user' };
+    const { db, mailer, logger, users } = makeMocks({ actor, target });
+    const res = await updateUserProfile({ userId: 'u1', actorId: 'a1', newEmail: 'new@x.com' }, { db, mailer, logger });
+    assert(res.ok === true && users['u1'].email === 'new@x.com', 'email updated');
+  }
+
+  // Test: email update DB failure
+  {
+    const actor = { id: 'a1', email: 'a@x.com', role: 'admin' };
+    const target = { id: 'u1', email: 'u@x.com', role: 'user' };
+    const { db, mailer, logger } = makeMocks({ actor, target, updateFail: true });
+    const res = await updateUserProfile({ userId: 'u1', actorId: 'a1', newEmail: 'new@x.com' }, { db, mailer, logger });
+    assert(res.ok === false && res.error === 'db error', 'db error on email update');
+  }
+
+  // Test: sendWelcome mail fail
+  {
+    const actor = { id: 'a1', email: 'a@x.com', role: 'admin' };
+    const target = { id: 'u1', email: 'u@x.com', role: 'user' };
+    const { db, mailer, logger } = makeMocks({ actor, target, mailFail: true });
+    const res = await updateUserProfile({ userId: 'u1', actorId: 'a1', sendWelcome: true }, { db, mailer, logger });
+    assert(res.ok === false && res.error === 'email failed', 'mail failure should yield email failed');
+  }
+
+  // Test: combined email + sendWelcome success
+  {
+    const actor = { id: 'a1', email: 'a@x.com', role: 'admin' };
+    const target = { id: 'u1', email: 'u@x.com', role: 'user' };
+    const { db, mailer, logger, users } = makeMocks({ actor, target });
+    const res = await updateUserProfile({ userId: 'u1', actorId: 'a1', newEmail: 'new@x.com', sendWelcome: true }, { db, mailer, logger });
+    assert(res.ok === true && users['u1'].email === 'new@x.com', 'email + welcome success');
+  }
+
+  console.log('All tests passed');
+}
+
+runTests().catch((e)=>{ console.error('Tests failed', e); process.exit(1); });

@@ -3,6 +3,8 @@ import {ChatOpenAI} from "@langchain/openai";
 import * as z from "zod";
 import {tool} from "@langchain/core/tools";
 import {HumanMessage} from "@langchain/core/messages";
+import {loadActions} from "../menu-runner/loader";
+import {showMenu} from "../menu-runner/menu";
 
 const model = new ChatOpenAI({
     model: "gpt-4o-mini",
@@ -11,7 +13,7 @@ const model = new ChatOpenAI({
 
 });
 const getWeather = tool(
-    ({ city }, config) => {
+    ({ city }) => {
 
         console.log("getWeather called with input: " + city);
         return 30;
@@ -31,7 +33,7 @@ export const agent = createAgent({
     tools: [getWeather],
 });
 
-export async function main() {
+export async function invokeSimpleTool() {
     const res = await agent.invoke({
         messages: [
             new HumanMessage({
@@ -50,8 +52,7 @@ export async function main() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-    main().catch((err) => {
-        console.error(err);
-        process.exit(1);
-    });
+    loadActions(import.meta.url)
+        .then(showMenu)
+        .catch(console.error);
 }

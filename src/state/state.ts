@@ -86,7 +86,7 @@ export const agent = createAgent({
     model,
     // middleware: [stateExtensionMiddleware],
     stateSchema: customStateSchema,
-      systemPrompt: "You are a string manipulation assistant.. Given a user input you need to call upperCaseString tool. You then needs to use that output and give that output to the reverseString tool.",
+    systemPrompt: "You are a string manipulation assistant.. Given a user input you need to call upperCaseString tool. You then needs to use that output and give that output to the reverseString tool.",
     tools: [upperCaseString, reverseString],
 });
 

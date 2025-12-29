@@ -1,3 +1,8 @@
+/**
+ *
+ * Simple text based chat CLI to interact with your LangChainJS Agent
+ *
+ */
 import {ChatOpenAI} from "@langchain/openai";
 import readline from "readline";
 import {createAgent} from "langchain";
