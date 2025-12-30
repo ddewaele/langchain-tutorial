@@ -18,6 +18,12 @@ In WebStorm you can setup the run configuration to use this file before launchin
 - [Getting started](./docs/getting-started.md)
   - Introduction to LangChainJS
   - End-to-end example
+- Core Concepts(./docs/concepts.md)
+  - Models
+  - Messages
+  - Tools
+  - Context
+  - State
 - [Messages](./docs/messages.md)
   - Concept of messages
   - Type of messages

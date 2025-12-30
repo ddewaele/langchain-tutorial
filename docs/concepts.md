@@ -3,7 +3,14 @@
 
 ## Core concepts
 
-- Understand core concepts such as messages / agents / models / context / middleware / state / .... 
+- Understand core concepts such as 
+  - messages
+  - agents
+  - models
+  - tools
+  - context
+  - state
+  - middleware
 
 ## Migration guide
 
@@ -28,7 +35,7 @@
 
 ## Context
 
-Define a ContextSchema object on the agent
+- Define a ContextSchema object on the agent
 
 
 ## CustomState

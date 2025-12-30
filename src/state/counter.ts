@@ -1,15 +1,20 @@
 /**
  *
  * In this example I'm going to show you how to create a simple counter agent.
- * The agent is responsible for taking in a number and incrementing that to an existing counter (stored in state)
+ * The agent for managing a counter state (initially set to 0)
+ * An increment tool is invoked that will increment the counter state
+ * The result is again stored in the state of the agent.
+ *
  *
  */
 import {z} from "zod";
-import {Command} from "@langchain/langgraph";
+import {Command, type Messages} from "@langchain/langgraph";
 import {ChatOpenAI} from "@langchain/openai";
 import {HumanMessage} from "@langchain/core/messages";
 import {tool, type ToolRuntime} from "@langchain/core/tools";
-import {createAgent, createMiddleware, ToolMessage} from "langchain";
+import {type AgentMiddleware, createAgent, createMiddleware, ToolMessage} from "langchain";
+import {loadActions} from "../menu-runner/loader";
+import {showMenu} from "../menu-runner/menu";
 
 
 const incrementTool = tool(
@@ -28,7 +33,7 @@ const incrementTool = tool(
                 messages: [
                     new ToolMessage({
                         tool_call_id: runtime.toolCallId,
-                        content: `Incremented to ${newCount}`,
+                        content: `${newCount}`,
                     }),
                 ],
             },
@@ -48,24 +53,13 @@ const customCountStateSchema = z.object({
     count : z.number()
 });
 
-
-// const CountState = z.object({
-//     ≈
-// });
-//
 const countState = createMiddleware({
     name: "CountState",
     stateSchema: customCountStateSchema,
 });
 
-// const stateSchema = Annotation.Root({
-//     ...MessagesAnnotation.spec,
-//     count: Annotation<number>(),
-// })
-
-
-
-const SYSTEM_PROMPT = `
+// This prompt always seems to work, with the single message but also with multiple messages
+const SYSTEM_PROMPT_1 = `
 
 You are a numeric assistant capable of adding numbers.
 You will be given a series of numbers that you need to increment
@@ -77,49 +71,167 @@ RULES (these are needed to ensure correct state updates by running the tools in 
 - You will do 1 tool call per number encountered
 - You will wait for the increment tool to finish before processing the next number.
 
+Your final message will be the final incremented count and you it came to be.`
 
-`
-
-// This prompt does not work
+// This prompt always works with multiple message but always fails with a single message
 const SYSTEM_PROMPT_2 = `
 You are a simple numeric assistant.
 
-You will see a series of numbers seperated by a space.
+You will be given a series of numbers that you need to increment
+1 message can contain multiple numbers.
 
 Your job is to execute the following steps in sequence for each number you encounter :
 
-1. execute the increment tool for that particular message
-2. repeat for the next message
+You will process numbers **one at a time**.
 
-Finally, explain the final incremented count.
-`
+1. execute the increment tool for that particular number
+2. wait for the result 
+3. repeat for the next message
 
-// 2. Agent
-export const agent = createAgent({
-    model: new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0 }),
+Finally, explain the final incremented count.`
 
-    middleware: [countState],
-    tools: [incrementTool],
-    systemPrompt: SYSTEM_PROMPT,
+// Sometimes works but sometimes fails with multiple messages.
+// The explanation is also completely wrong.
+// Always fail with a single message.
+const SYSTEM_PROMPT_3 = `
+You are a simple numeric assistant.
 
+For each number you encounter you need to execute the increment tool 
+Before continuing to the next number you make sure the previous increment tool has finished and you looked at the result.
+
+Finally, explain the final incremented count.`
+
+const noParallelToolCalls = createMiddleware({
+    name: "NoParallelToolCalls",
+    wrapModelCall: (request, handler) => {
+        return handler({
+            ...request,
+            modelSettings: {
+                ...(request.modelSettings ?? {}),
+                parallel_tool_calls: false,
+            },
+        });
+    },
 });
 
-// 3. Call agent with preset human messages
-(async () => {
-    const result = await agent.invoke({
-        // These are the preset messages you wanted
-        messages: [
-            new HumanMessage("Here are the numbers : [4 , 8 , 2]"),
+async function createAgentWithPrompt(systemPrompt: string, messages: Messages, extraMiddleware?: AgentMiddleware) {
 
-            // Providing individual messages throws an error : InvalidUpdateError: Invalid update for channel "count" with values [14,18,12]: LastValue can only receive one value per step.
-            new HumanMessage("4"),
-            new HumanMessage("8"),
-            new HumanMessage("2"),
+    const agent = createAgent({
+        model: new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0 }),
+
+        middleware: [
+            countState,
+            ...(extraMiddleware ? [extraMiddleware] : []),
         ],
-        // Initial state value (could also be omitted)
-        count: 0,
+        tools: [incrementTool],
+        systemPrompt
     });
 
-    console.log("\n=== FINAL OUTPUT ===");
-    console.dir(result, { depth: null });
-})();
+    try {
+        const result = await agent.invoke({
+            messages,
+            // Initial state value (could also be omitted)
+            count: 0,
+        });
+
+        console.log(`Result = ${result.count}`);
+
+    } catch (e) {
+        console.error(e.message);
+    }
+}
+
+export async function agentPrompt1Test() {
+
+    for(let i = 0; i < 10; i++) {
+        await agentPrompt1SingleMessage()
+    }
+    for(let i = 0; i < 10; i++) {
+        await agentPrompt1MultipleMessage()
+    }
+}
+
+
+export async function agentPrompt1SingleMessage() {
+    await createAgentWithPrompt(
+        SYSTEM_PROMPT_1, [
+            new HumanMessage("Here are the numbers : [4 , 8 , 2]")
+        ]
+    )
+}
+
+export async function agentPrompt1MultipleMessage() {
+    await createAgentWithPrompt(
+        SYSTEM_PROMPT_1, [
+            new HumanMessage("4"),
+            new HumanMessage("8"),
+            new HumanMessage("2")
+        ]
+    )
+}
+
+
+export async function agentPrompt2Test() {
+
+    // for(let i = 0; i < 10; i++) {
+    //     await agentPrompt2SingleMessage()
+    // }
+    for(let i = 0; i < 10; i++) {
+        await agentPrompt2MultipleMessage()
+    }
+}
+
+export async function agentPrompt2SingleMessage() {
+    await createAgentWithPrompt(
+        SYSTEM_PROMPT_2, [
+            new HumanMessage("Here are the numbers : [4 , 8 , 2]")
+        ],
+
+    )
+}
+
+export async function agentPrompt2MultipleMessage() {
+    await createAgentWithPrompt(
+        SYSTEM_PROMPT_2, [
+            new HumanMessage("4"),
+            new HumanMessage("8"),
+            new HumanMessage("2")
+        ],
+
+    )
+}
+
+export async function agentPrompt3Test() {
+
+    for(let i = 0; i < 10; i++) {
+        await agentPrompt3SingleMessage()
+    }
+    // for(let i = 0; i < 10; i++) {
+    //     await agentPrompt3MultipleMessage()
+    // }
+}
+
+export async function agentPrompt3SingleMessage() {
+    await createAgentWithPrompt(
+        SYSTEM_PROMPT_3, [
+            new HumanMessage("Here are the numbers : [4 , 8 , 2]")
+        ]
+    )
+}
+
+export async function agentPrompt3MultipleMessage() {
+    await createAgentWithPrompt(
+        SYSTEM_PROMPT_3, [
+            new HumanMessage("4"),
+            new HumanMessage("8"),
+            new HumanMessage("2")
+        ]
+    )
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+    loadActions(import.meta.url)
+        .then(showMenu)
+        .catch(console.error);
+}
+

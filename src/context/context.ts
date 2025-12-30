@@ -29,7 +29,7 @@
  */
 import * as z from "zod";
 import {tool, type ToolRuntime} from "@langchain/core/tools";
-import {createAgent, createMiddleware, ToolMessage} from "langchain";
+import {createAgent, createMiddleware, initChatModel, ToolMessage} from "langchain";
 import {HumanMessage} from "@langchain/core/messages";
 import {loadActions} from "../menu-runner/loader";
 import {showMenu} from "../menu-runner/menu";
@@ -38,17 +38,17 @@ const contextSchema = z.object({
     userId: z.string(),
     apiKey: z.string(),
     dbConnection: z.string(),
-    isAuthorized: z.function().input( z.string() ).output( z.boolean()),
-
+    isAuthorized: z
+        .function()
+        .input(z.tuple([z.string()]))   // <-- tuple of args
+        .output(z.boolean()),
 });
 
 const fetchUserData = tool(
     async ({ query }, runtime: ToolRuntime<any, typeof contextSchema>) => {
-        // Read from Runtime Context: get API key and DB connection
+
         const { userId, apiKey, dbConnection } = runtime.context;
-
         console.log(`Received ${query} : Fetching data for user ${userId} using API key ${apiKey} and DB connection ${dbConnection}`);
-
         return `Found 1 result for user ${userId}`;
     },
     {
@@ -81,15 +81,16 @@ const loggingMiddleware = createMiddleware({
         try {
             return await handler(modifiedRequest);
         } catch (error) {
-            const fallbackRequest = { ...request, model: "gpt-5-mini" };
+            const fallbackRequest = { ...request, model: await initChatModel("gpt-5-mini") };
             return await handler(fallbackRequest);
         }
     },
     wrapToolCall: async (request, handler) => {
         console.log(`wrapToolCall with runtime.context.userId = ${request.runtime.context.userId}`);
 
+        const toolName = request.tool.name as string
         // Check if user is authorized for this tool
-        if (!request.runtime.context.isAuthorized(request.tool.name)) {
+        if (!request.runtime.context.isAuthorized(toolName)) {
             return new ToolMessage({
                 content: "Unauthorized to call this tool",
                 tool_call_id: request.toolCall.id!,

@@ -1,5 +1,5 @@
 import readline from "readline";
-import {CliAction} from "./types";
+import type {CliAction} from "./types";
 
 export async function showMenu(actions: CliAction[]) {
     console.clear();
