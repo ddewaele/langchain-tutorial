@@ -26,7 +26,6 @@
 - that state can be used and updated.
 - Understand the different use-cases for the middleware
 
-
 ## Context
 
 Define a ContextSchema object on the agent

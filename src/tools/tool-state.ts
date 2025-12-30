@@ -33,6 +33,7 @@ export async function runAgentWithToolConfig() {
         model: new ChatOpenAI({ model: "gpt-4o" }),
         tools: [getUserName],
         middleware: [userState],
+        // stateSchema: UserState <- not needed when using middleware
     });
 
     const result = await agent.invoke(

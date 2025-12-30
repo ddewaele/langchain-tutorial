@@ -100,10 +100,10 @@ const loggingMiddleware = createMiddleware({
         console.log("WRAP MODEL CALL MIDDLEWARE")
         console.log("---------------------")
         console.log(`lastMessage.content: ${lastMessage.content}`)
-        console.log(`runtime.context.userId = ${request.runtime.context.userId}`)
-        console.log(`state.messages.length = ${request.state.messages.length}`)
-        console.log(`state.counter ${request.state.counter}`);
-        console.log(`state.foo = ${request.state.foo}` )
+        console.log(`request.runtime.context.userId = ${request.runtime.context.userId}`)
+        console.log(`request.state.messages.length = ${request.state.messages.length}`)
+        console.log(`request.state.counter ${request.state.counter}`);
+        console.log(`request.state.foo = ${request.state.foo}` )
         console.log("\n")
 
         try {

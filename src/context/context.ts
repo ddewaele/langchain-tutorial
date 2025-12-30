@@ -63,17 +63,19 @@ const fetchUserData = tool(
 
 const loggingMiddleware = createMiddleware({
     name: "LoggingMiddleware",
-    beforeModel: (state    ) => {
-        console.log(`About to call model with ${state.messages.length} messages`);
+    beforeModel: (state,runtime    ) => {
+        console.log(`About to call model with ${state.messages.length} messages and runtime.context.userId = ${runtime.context.userId}`);
         return;
     },
-    afterModel: (state ) => {
+    afterModel: (state, runtime ) => {
         const lastMessage = state.messages[state.messages.length - 1];
-        console.log(`Model returned: ${lastMessage.content}`);
+        console.log(`Model returned: ${lastMessage.content} and runtime.context.userId = ${runtime.context.userId}`);
         return;
     },
     wrapModelCall: async (request, handler) => {
         // Modify request before calling
+        console.log(`wrapModelCall with runtime.context.userId = ${request.runtime.context.userId}`);
+
         const modifiedRequest = { ...request, systemPrompt: "You are helpful" };
 
         try {
@@ -84,6 +86,8 @@ const loggingMiddleware = createMiddleware({
         }
     },
     wrapToolCall: async (request, handler) => {
+        console.log(`wrapToolCall with runtime.context.userId = ${request.runtime.context.userId}`);
+
         // Check if user is authorized for this tool
         if (!request.runtime.context.isAuthorized(request.tool.name)) {
             return new ToolMessage({
@@ -103,7 +107,7 @@ export async function executeAgentWithContext() {
         model: "gpt-4o-mini",
         tools: [fetchUserData],
         middleware: [loggingMiddleware],
-        contextSchema,
+        // contextSchema, // not really needed if you put it on the middleware ?
     });
 
 

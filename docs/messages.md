@@ -25,9 +25,18 @@ There are different types of messages:
 - AIMessage
 - ToolMessage
 
+And some other more exotic typed like
+
+- RemoveMessage
+
 ### SystemMessage
 
 Initial set of instructions to the model. Defines its context and how it should behave.
+You can create it using 
+
+- `new SystemMessage("You are an expert in Typescript")`
+- `{role: "system", content: "You are an expert in Typescript"}`
+- `[["system","You are an expert in Typescript"]]`
 
 ### HumanMessage
 

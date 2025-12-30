@@ -1,4 +1,4 @@
-import {createAgent, ToolMessage} from "langchain";
+import {createAgent, createMiddleware, ToolMessage} from "langchain";
 import {ChatOpenAI} from "@langchain/openai";
 import * as z from "zod";
 import {tool, type ToolRuntime} from "@langchain/core/tools";
@@ -13,16 +13,18 @@ const model = new ChatOpenAI({
 
 });
 
-const upperCaseString = tool(
+
+
+const tool1 = tool(
     async ({input}, runtime: ToolRuntime) => {
         // throw new Error("This tool should never be called directly.");
         const tool_call_id = runtime.toolCallId;
 
-        console.log("upperCaseString called with input: " + input)
+        console.log("tool1 called with input: " + input)
 
         const upper = input.toUpperCase();
 
-        console.log("upperCaseString output: " + upper);
+        console.log("tool1 output: " + upper);
 
 
 
@@ -50,24 +52,24 @@ const upperCaseString = tool(
         // }
     },
     {
-        name: "upperCaseString",
-        description: "conver the input to uppercase.",
+        name: "tool_1",
+        description: "First tool",
         schema: z.object({
             input: z.string(),
         }),
     }
 );
 
-const reverseString = tool(
+const tool2 = tool(
     async ({input}, runtime: ToolRuntime) => {
         const tool_call_id = runtime.toolCallId;
 
-        console.log("reverseString called with input : " + input);
+        console.log("tool2 called with input : " + input);
 
         const reversed = input.split("").reverse().join("");
         ;
 
-        console.log("reverseString output: " + reversed);
+        console.log("tool2 output: " + reversed);
         return new Command({
             update: {
                 reversed, messages: [
@@ -82,8 +84,8 @@ const reverseString = tool(
 
     },
     {
-        name: "reverseString",
-        description: "convert the input to a reversed string.",
+        name: "tool_2",
+        description: "Second tool",
         schema: z.object({
             input: z.string(),
         }),
@@ -91,28 +93,43 @@ const reverseString = tool(
 );
 
 
+
+// const stateSchema = Annotation.Root({
+//     ...MessagesAnnotation.spec,
+//     uppercased: Annotation<string>(),
+// })
+
 const stateSchema = Annotation.Root({
-    ...MessagesAnnotation.spec,
-    uppercased: Annotation<string>(),
-})
+    messages: MessagesAnnotation,
+    uppercased: Annotation<string | undefined>(),
+    reversed: Annotation<string | undefined>(),
+});
+
+const ToolState = z.object({
+    uppercased: z.string(),
+});
+
+const toolState = createMiddleware({
+    name: "ToolState",
+    stateSchema: ToolState,
+});
 
 export const agent = createAgent({
     model,
-    stateSchema,
-    // systemPrompt: "You are a string manipulation assistant. Given a user input you need to call upperCaseString tool and use that output to pass it on to the reverseString tool.",
-    // systemPrompt: "You are a string manipulation assistant.. Given a user input you need to call upperCaseString tool. You then needs to use that output and give that output to the reverseString tool.",
-
+    // middleware: [toolState],
+    stateSchema: ToolState,
     systemPrompt: `
     You MUST follow this exact procedure:
 
-1. ALWAYS call the "upperCaseString" tool first.
-2. Wait for its result (state.uppercased will contain the output)
-3. THEN call the "reverseString" tool with the uppercase value.
-4. Only AFTER both tools have executed, produce the final response.
+1. call tool_1
+2. Wait for its result
+3. call tool_2
+4. Wait for its result
+5. Only AFTER both tools have executed, produce the final response.
 
 NEVER answer directly. NEVER skip a tool call.
     `,
-    tools: [upperCaseString, reverseString],
+    tools: [tool1, tool2],
 });
 
 export async function runToolsInSeuquence() {

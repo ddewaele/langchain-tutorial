@@ -1,6 +1,10 @@
 /**
- * Example demonstrating how to use LangChain to create an agent that can be invoked and streamed.
- * Explores 2 streaming modes:
+ * Example demonstrating how to use LangChain to create an agent that can be
+ *
+ * - invoked
+ * - streamed.
+ *
+ * We also explore 2 streaming modes:
  *
  * - Using messages mode
  * - Using updates mode
@@ -26,7 +30,7 @@ const agent = createAgent({
 export async function invokeAgentWithInlineModel() {
 
     const agent = createAgent({
-        model : "gpt-4o-mini",
+        model : "gpt-4o-mini", // using an inline model for additional flexibility
         systemPrompt: "You are a helpfull assistant",
     });
 
@@ -40,7 +44,6 @@ export async function invokeAgentWithInlineModel() {
         ]
     });
 
-    // get the last message from the response from the agent
     const lastMessage = res.messages[res.messages.length - 1];
     console.log(lastMessage.content);
 }

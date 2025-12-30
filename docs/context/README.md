@@ -2,9 +2,10 @@
 
 Some code samples showing you the use of context in LangChainJS
 
-Consider context as an immutable data structure that you inject in a conversation.
-It is available throughout the lifespan of the conversation.
-It is typically not altered by the user / agent / flow.
+- Consider context as an immutable data structure that you inject in a conversation.
+- It is available throughout the lifespan of the conversation.
+- It is typically not altered by the user / agent / flow.
+- It is passed along as the second argument of the `invoke` function.
 
 The context is something you pass in when invoking the agent.
 
@@ -27,7 +28,7 @@ The context is something you pass in when invoking the agent.
 ```
 
 
-the second argument to the `invoke` function is the optional runtime configuration that can includie
+The second argument to the `invoke` function is the optional runtime configuration that can includes : 
 
 - context : The context for the agent execution.
 - configurable : LangGraph configuration options like `thread_id`, `run_id`, etc.
@@ -35,15 +36,54 @@ the second argument to the `invoke` function is the optional runtime configurati
 - signal : An optional {@link https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal | `AbortSignal`} for the agent execution.
 - recursionLimit : The recursion limit for the agent execution.
 
-The context is available in
+That context is available in
 
 - Tools
 - Middleware
 
+## Context in tools
 
 Tool runtime available in tools
 
+Tools can read from the context using the runtime object.
+
+```
+
+
+const fetchUserData = tool(
+    async ({ query }, runtime: ToolRuntime<any, typeof contextSchema>) => {
+        // Read from Runtime Context: get API key and DB connection
+        const { userId, apiKey, dbConnection } = runtime.context;
+
+        console.log(`Received ${query} : Fetching data for user ${userId} using API key ${apiKey} and DB connection ${dbConnection}`);
+
+        return `Found 1 result for user ${userId}`;
+    },
+    {
+        name: "fetch_user_data",
+        description: "Fetch data using Runtime Context configuration",
+        schema: z.object({
+            query: z.string(),
+        }),
+    }
+);
+```
+
 ![img_2.png](img_2.png)
+
+Middleware can access the context using the `runtime` object. (or via `request.runtime`)
+
+```
+const loggingMiddleware = createMiddleware({
+    name: "LoggingMiddleware",
+    beforeModel: (state,runtime) => {
+        console.log(`About to call model with ${state.messages.length} messages and runtime.context.userId = ${runtime.context.userId}`);
+        return;
+    },
+    ....
+```    
+
+## Context in middleware 
 
 Agent runtime available in middleware
 

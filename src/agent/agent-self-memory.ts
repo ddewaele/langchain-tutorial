@@ -1,7 +1,11 @@
 /**
  *
  * Example demonstrating how  LangChain can remember its own history.
- * The agent in and of itself without a checkpointer is stateless, but by providing the previous messages in the conversation allows him to retain memory.
+ * The agent in and of itself without a checkpointer is stateless, meaning it does not magically remember past messages.
+ * With every invoke you need to pass along the entire conversation.
+ * Typically this is done via a checkpointer.
+ *
+ * This examples shows the process of providing the previous messages in the conversation allows him to retain memory.
  *
  */
 import {AIMessage, HumanMessage} from "@langchain/core/messages";
